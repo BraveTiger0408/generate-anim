@@ -54,7 +54,7 @@ paths:
   /code-to-video:
     post:
       summary: Convert Code to Video
-      description: Converts provided Manim code to a video and uploads it to Azure Blob Storage.
+      description: Converts provided Manim code to a video and uploads it to storage.
       requestBody:
         required: true
         content:
@@ -65,29 +65,30 @@ paths:
                 code:
                   type: string
                   description: The Manim code to convert to video.
-                  example: |
-                    from manim import *
-                    from math import *
-                    class GenScene(Scene):
-                      def construct(self):
-                        c = Circle(color=BLUE)
-                        self.play(Create(c))
                 file_name:
                   type: string
                   description: The name of the file to save the code.
-                  example: example.py
                 file_class:
                   type: string
                   description: The class name to render.
-                  example: GenScene
+                user_id:
+                  type: string
+                  description: The user ID for the video.
+                  default: "anonymous"
+                project_name:
+                  type: string
+                  description: The project name for the video.
                 iteration:
                   type: integer
                   description: The iteration number for naming the video.
-                  example: 1
                 aspect_ratio:
                   type: string
-                  description: The aspect ratio of the video.
-                  example: 16:9
+                  description: The aspect ratio of the video (16:9, 1:1, or 9:16).
+                  default: "16:9"
+                stream:
+                  type: boolean
+                  description: Whether to stream the percentage of animation shown.
+                  default: false
       responses:
         '200':
           description: Successful response with video URL
@@ -102,6 +103,13 @@ paths:
                   video_url:
                     type: string
                     description: URL of the generated video.
+        '207':
+          description: Streaming response with animation progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: JSON-encoded progress updates or error messages.
         '400':
           description: Bad Request
           content:
