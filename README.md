@@ -10,15 +10,21 @@
 </p>
 
 <p align="center">
-  🎨 GPT-4 powered generative videos. Concept. ⚡️ <a href="https://discord.gg/HkbYEGybGv">Join our Discord server here!</a>
+  🎨 GPT-4o powered generative videos. Concept. ⚡️ <a href="https://discord.gg/HkbYEGybGv">Join our Discord server here!</a>
 </p>
 
 <p align="center">
-  <a href="https://generative-manim.streamlit.app">
-    <img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" />
+  <a href="https://generative-manim.vercel.app">
+    <img src="https://img.shields.io/static/v1?label=Demo&message=Generative%20Manim&color=000000&logo=vercel&style=flat" />
+  </a>
+  <a href="https://animo.video">
+    <img src="https://img.shields.io/static/v1?label=Platform&message=Animo&color=E11D48&logo=openai&style=flat" />
   </a>
   <a href="">
-    <img src="https://img.shields.io/static/v1?label=OpenAI%20API&message=GPT-4&color=000000&logo=openai&style=flat" />
+    <img src="https://img.shields.io/static/v1?label=OpenAI%20API&message=GPT-4o&color=000000&logo=openai&style=flat" />
+  </a>
+  <a href="">
+    <img src="https://img.shields.io/static/v1?label=Anthropic&message=Claude&color=000000&logo=anthropic&style=flat" />
   </a>
 </p>
 
