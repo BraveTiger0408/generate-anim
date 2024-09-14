@@ -1,108 +1,18 @@
-"""
-GM (Generative Manim) API is licensed under the Apache License, Version 2.0
-"""
-
-import os
-import time
-import re
-from subprocess import run, PIPE, Popen, CalledProcessError
+from flask import Blueprint, jsonify, current_app, request, Response
 import subprocess
-import urllib.parse
-import requests
-from flask import Flask, jsonify, request, Response, url_for
-from dotenv import load_dotenv
-from azure.storage.blob import BlobServiceClient
-import threading
-from openai import OpenAI
-import anthropic
-from flask_cors import CORS
+import os
+import re
+import json
 import sys
 import traceback
-import json
+from azure.storage.blob import BlobServiceClient
 import shutil
-from flask import request
 
-load_dotenv()
-app = Flask(__name__, static_folder="public", static_url_path="/public")
-CORS(app)
+video_rendering_bp = Blueprint("video_rendering", __name__)
+
 
 USE_LOCAL_STORAGE = os.getenv("USE_LOCAL_STORAGE", "true") == "true"
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8080")
-
-
-@app.route("/")
-def hello_world():
-    return "Generative Manim Processor"
-
-
-@app.route("/generate-code", methods=["POST"])
-def generate_code():
-    body = request.json
-    prompt_content = body.get("prompt", "")
-    model = body.get("model", "gpt-4o")
-
-    general_system_prompt = """
-You are an assistant that knows about Manim. Manim is a mathematical animation engine that is used to create videos programmatically.
-
-The following is an example of the code:
-\`\`\`
-from manim import *
-from math import *
-
-class GenScene(Scene):
-def construct(self):
-    c = Circle(color=BLUE)
-    self.play(Create(c))
-
-\`\`\`
-
-# Rules
-1. Always use GenScene as the class name, otherwise, the code will not work.
-2. Always use self.play() to play the animation, otherwise, the code will not work.
-3. Do not use text to explain the code, only the code.
-4. Do not explain the code, only the code.
-    """
-
-    if model.startswith("claude-"):
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        messages = [{"role": "user", "content": prompt_content}]
-        try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=1000,
-                temperature=0.2,
-                system=general_system_prompt,
-                messages=messages,
-            )
-
-            # Extract the text content from the response
-            code = "".join(block.text for block in response.content)
-
-            return jsonify({"code": code})
-
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    else:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        messages = [
-            {"role": "system", "content": general_system_prompt},
-            {"role": "user", "content": prompt_content},
-        ]
-
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0.2,
-            )
-
-            code = response.choices[0].message.content
-
-            return jsonify({"code": code})
-
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
 
 
 def upload_to_azure_storage(file_path: str, video_storage_file_name: str) -> str:
@@ -127,7 +37,9 @@ def upload_to_azure_storage(file_path: str, video_storage_file_name: str) -> str
     return blob_url
 
 
-def move_to_public_folder(file_path: str, video_storage_file_name: str, base_url: str | None = None) -> str:
+def move_to_public_folder(
+    file_path: str, video_storage_file_name: str, base_url: str | None = None
+) -> str:
     """
     Moves the video to the public folder and returns the URL.
     """
@@ -156,9 +68,9 @@ def get_frame_config(aspect_ratio):
         return (3840, 2160), 14.22
 
 
-@app.route("/code-to-video", methods=["POST"])
-def code_to_video():
-    with app.app_context():
+@video_rendering_bp.route("/v1/video/rendering", methods=["POST"])
+def render_video():
+    with current_app.app_context():
         code = request.json.get("code")
         file_name = request.json.get("file_name")
         file_class = request.json.get("file_class")
@@ -198,7 +110,7 @@ config.frame_width = {frame_width}
             f.write(modified_code)
 
         def render_video():
-            with app.app_context():
+            with current_app.app_context():
                 try:
                     command_list = [
                         "manim",
@@ -375,8 +287,3 @@ config.frame_width = {frame_width}
             except Exception as e:
                 print(f"Error in non-streaming mode: {e}")
                 return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(debug=False, host="0.0.0.0", port=port)
