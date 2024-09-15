@@ -22,6 +22,12 @@ Altough Docker is not required, it is recommended to make sure you have the nece
 
 - [Docker](https://www.docker.com/)
 - [Docker Compose](https://docs.docker.com/compose/)
+- [Manim](https://docs.manim.community/en/stable/installation.html)
+
+And, depending on the model you want to use, you will need to have an API key for the model provider.
+
+- [OpenAI](https://openai.com/api/)
+- [Anthropic](https://www.anthropic.com/api)
 
 ### Steps
 
