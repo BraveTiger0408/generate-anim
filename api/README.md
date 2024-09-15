@@ -60,3 +60,52 @@ docker run -p 8080:8080 generative-manim-api
 4. **Wohoo!** 🎉 Congratulations! You have the API running.
 
 Now that you have the API running, you can use it to generate Manim scripts and render videos. Or you can interact with it using the [Animo](https://animo.video) platform. Remember to enable **Use Local Server** in the **Settings** tab of your Animo project. And when required, paste the HTTP URL to the API.
+
+## 🍓 Usage
+
+### 💻 How to generate Manim Code?
+
+Let's say you want to create a simple animation that shows a square transforming into a circle. You can use the `/v1/code/generation` endpoint with a POST request. Like this:
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/code/generation \
+-H "Content-Type: application/json" \
+-d '{
+  "prompt": "Create a Manim animation that shows a square transforming into a circle"
+}'
+```
+
+### 💬 How to generate Manim Code via chat?
+
+Let's say you want to generate a simple animation of a 3D rotating cube. You can use the `/v1/chat/generation` endpoint with a POST request. Like this:
+
+```bash
+curl -N -X POST http://127.0.0.1:8080/v1/chat/generation \
+-H "Content-Type: application/json" \
+-d '{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Create a simple Manim animation that shows a circle transforming into a square."
+    }
+  ],
+  "engine": "anthropic"
+}'
+```
+
+When executed, the API will return the stream of the latest assistant message.
+
+### 🎥 How to render a Manim video?
+
+Let's say you want to render a circle scaling animation. You can use the `/v1/video/rendering` endpoint with a POST request. Like this:
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/video/rendering \
+-H "Content-Type: application/json" \
+-d '{
+  "code": "from manim import *\n\nclass DrawCircle(Scene):\n    def construct(self):\n        # Create a circle object\n        circle = Circle()\n\n        # Use the animate API to smoothly scale the circle down to a radius of 0.1\n        self.play(Create(circle))\n",
+  "file_name": "scene_56861",
+  "file_class": "DrawCircle",
+  "stream": true
+}'
+```
