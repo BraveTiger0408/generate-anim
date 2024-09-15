@@ -3,6 +3,7 @@ import anthropic
 import openai
 import os
 import json
+from api.prompts.manimDocs import manimDocs
 
 chat_generation_bp = Blueprint("chat_generation", __name__)
 
@@ -25,8 +26,33 @@ def generate_code_chat():
     project_title = data.get("projectTitle", "")
     engine = data.get("engine", "openai")
     selected_scenes = data.get("selectedScenes", [])
+    is_for_platform = data.get("isForPlatform", False)
 
-    general_system_prompt = "You are an assistant that creates animations with Manim. Manim is a mathematical animation engine that is used to create videos programmatically. You are running on Animo (www.animo.video), a tool to create videos with Manim."
+    general_system_prompt = """You are an assistant that creates animations with Manim. Manim is a mathematical animation engine that is used to create videos programmatically. You are running on Animo (www.animo.video), a tool to create videos with Manim.
+
+# What the user can do?
+
+The user can create a new project, add scenes, and generate the video. You can help the user to generate the video by creating the code for the scenes. The user can add custom rules for you, can select a different aspect ratio, and can change the model (from OpenAI GPT-4o to Anthropic Claude 3.5 Sonnet).
+
+# Code Context
+
+The following is an example of the code:
+\`\`\`
+from manim import *
+from math import *
+
+class GenScene(Scene):
+  def construct(self):
+      # Create a circle of color BLUE
+      c = Circle(color=BLUE)
+      # Play the animation of creating the circle
+      self.play(Create(c))
+
+\`\`\`
+
+# Manim Library
+{manimDocs}
+"""
 
     messages.insert(0, {"role": "system", "content": general_system_prompt})
 
@@ -66,20 +92,22 @@ def generate_code_chat():
                     stream=True,
                 )
                 for chunk in stream:
-                    if isinstance(chunk, anthropic.types.MessageStartEvent):
-                        continue
-                    if isinstance(chunk, anthropic.types.ContentBlockStartEvent):
-                        continue
                     if isinstance(chunk, anthropic.types.ContentBlockDeltaEvent):
                         content = chunk.delta.text
                         if content:
-                            yield content
+                            if is_for_platform:
+                                for char in content:
+                                    yield f'0:"{char}"\n'
+                            else:
+                                yield content
             except Exception as e:
                 print(f"Error in Anthropic API call: {str(e)}")
-                yield f"Error: {str(e)}"
+                error_message = f'0:"Error: {str(e)}"\n' if is_for_platform else f"Error: {str(e)}"
+                yield error_message
 
         return Response(
-            stream_with_context(generate()), content_type="text/event-stream"
+            stream_with_context(generate()), 
+            content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream"
         )
 
     else:
@@ -94,8 +122,13 @@ def generate_code_chat():
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     content = chunk.choices[0].delta.content
-                    yield content
+                    if is_for_platform:
+                        for char in content:
+                            yield f'0:"{char}"\n'
+                    else:
+                        yield content
 
         return Response(
-            stream_with_context(generate()), content_type="text/event-stream"
+            stream_with_context(generate()), 
+            content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream"
         )
