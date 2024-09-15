@@ -97,7 +97,8 @@ class GenScene(Scene):
                         if content:
                             if is_for_platform:
                                 for char in content:
-                                    yield f'0:"{char}"\n'
+                                    escaped_char = repr(char)[1:-1]
+                                    yield f'0:"{escaped_char}"\n'
                             else:
                                 yield content
             except Exception as e:
@@ -105,10 +106,10 @@ class GenScene(Scene):
                 error_message = f'0:"Error: {str(e)}"\n' if is_for_platform else f"Error: {str(e)}"
                 yield error_message
 
-        return Response(
-            stream_with_context(generate()), 
-            content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream"
-        )
+        response = Response(stream_with_context(generate()), content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream")
+        if is_for_platform:
+            response.headers['Transfer-Encoding'] = 'chunked'
+        return response
 
     else:
         client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -124,11 +125,12 @@ class GenScene(Scene):
                     content = chunk.choices[0].delta.content
                     if is_for_platform:
                         for char in content:
-                            yield f'0:"{char}"\n'
+                            escaped_char = repr(char)[1:-1]
+                            yield f'0:"{escaped_char}"\n'
                     else:
                         yield content
 
-        return Response(
-            stream_with_context(generate()), 
-            content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream"
-        )
+        response = Response(stream_with_context(generate()), content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream")
+        if is_for_platform:
+            response.headers['Transfer-Encoding'] = 'chunked'
+        return response
