@@ -164,4 +164,5 @@ GenScene.mp4
 
 # Videos
 exported-*.mp4
-video-*.mp4
+previews/
+temp_manim/
