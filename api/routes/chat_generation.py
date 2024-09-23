@@ -23,7 +23,7 @@ animo_functions = {
     "openai": [
         {
             "name": "get_preview",
-            "description": "Get a preview of the video animation before generating it. Use this function always, before giving the final code to the user.And use it to generate frames of the video, so you can improve it over time.",
+            "description": "Get a preview of the video animation before generating it. Use this function always, before giving the final code to the user. And use it to generate frames of the video, so you can improve it over time. Also, before using this function, tell the user you will be generating a preview based on the code they see.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -91,6 +91,13 @@ Yes, even if you use the `get_preview` function, the code will be generated and 
 
 **Can the assistant propose a more efficient way to generate the animation?**
 Yes, the assistant can propose a more efficient way to generate the animation. For example, the assistant can propose a different aspect ratio, a different model, or a different scene. If the change is too big, you should ask the user for confirmation. Act with initiative.
+
+**Should the assistant tell the user about the get_preview function?**
+Yes, here are some examples:
+
+1. Let me generate a preview of the animation to see how it looks like for you. I'll see it.
+2. I have an idea on how to improve the animation, let me visualize it for a second.
+3. OK. Now I know how to improve the animation. Please give me a moment to preview it.
 
 # Code Context
 
@@ -284,7 +291,7 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                                 })
                     image_list.sort(key=lambda x: x["index"])
                     return json.dumps({
-                        "message": f"PNGs Preview generated successfully and moved to {destination_dir}",
+                        "message": f"Animation preview generated successfully and moved to {destination_dir}. Now you will see the image frames in the next automatic message...",
                         "images": image_list
                     })
                 else:
@@ -328,23 +335,30 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                             if chunk.choices[0].delta.content:
                                 content = chunk.choices[0].delta.content
                                 if is_for_platform:
-                                    for char in content:
-                                        escaped_char = repr(char)[1:-1]
-                                        yield f'0:"{escaped_char}"\n'
+                                    text_obj = json.dumps({"type": "text", "text": content})
+                                    yield f'{text_obj}\n'
                                 else:
                                     yield content
                             elif chunk.choices[0].delta.function_call:
-                                function_call = chunk.choices[0].delta.function_call
-                                if function_call.name:
-                                    function_name = function_call.name
-                                if function_call.arguments:
-                                    function_call_data += function_call.arguments
+                                if chunk.choices[0].delta.function_call.name:
+                                    function_name = chunk.choices[0].delta.function_call.name
                                     if is_for_platform:
-                                        for char in function_call.arguments:
-                                            escaped_char = repr(char)[1:-1]
-                                            yield f'0:"{escaped_char}"\n'
-                                    else:
-                                        yield function_call.arguments
+                                        initial_call_obj = json.dumps({
+                                            "type": "function_call",
+                                            "content": "",
+                                            "function_call": {"name": function_name}
+                                        })
+                                        yield f'{initial_call_obj}\n'
+                                if chunk.choices[0].delta.function_call.arguments:
+                                    chunk_data = chunk.choices[0].delta.function_call.arguments
+                                    function_call_data += chunk_data
+                                    if is_for_platform:
+                                        partial_call_obj = json.dumps({
+                                            "type": "function_call",
+                                            "content": "",
+                                            "function_call": {"args": chunk_data}
+                                        })
+                                        yield f'{partial_call_obj}\n'
                         
                         # If we get here, the stream completed successfully
                         break
@@ -379,9 +393,9 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                         }
                     })
                     if is_for_platform:
-                        for char in function_call_obj:
-                            escaped_char = repr(char)[1:-1]
-                            yield f'0:"{escaped_char}"\n'
+                        pass
+                        # text_obj = json.dumps({"type": "text", "text": function_call_obj})
+                        # yield f'{text_obj}\n'
                     else:
                         yield function_call_obj
 
@@ -399,13 +413,15 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                         messages.append(function_response)
 
                         # Yield the function response back to the frontend
-                        function_response_obj = json.dumps(function_response)
                         if is_for_platform:
-                            for char in function_response_obj:
-                                escaped_char = repr(char)[1:-1]
-                                yield f'0:"{escaped_char}"\n'
+                            function_result_obj = json.dumps({
+                                "type": "function_result",
+                                "content": function_response,
+                                "function_call": {"name": function_name}
+                            })
+                            yield f'{function_result_obj}\n'
                         else:
-                            yield function_response_obj
+                            yield json.dumps(function_response)
 
                         # Only create and send image_message if there are images
                         if result_json.get("images"):
@@ -415,7 +431,9 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": "SUCCESS! These are the frames of the animation you generated. Please check all the frames and follow the rules: Text should not be overlapping, the space should be used efficiently, use different colors to represent different objects, plus other improvements you can think of. Remember to use the `get_preview` function to generate the code and iterate on it."
+                                        "text": """ASSISTANT_MESSAGE_PREVIEW_GENERATED: This message is not generated by the user, but automatically by you, the assistant when firing the `get_preview` function, this message might not be visible to the user.
+                                        
+                                        The following images are the frames of the animation generated. Please check all the frames and follow the rules: Text should not be overlapping, the space should be used efficiently, use different colors to represent different objects, plus other improvements you can think of. Before iterating on the animation, describe it detailing all the objects, movements and colors."""
                                     }
                                 ]
                             }
@@ -431,9 +449,9 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                             # Yield the image message back to the frontend
                             image_message_obj = json.dumps(image_message)
                             if is_for_platform:
-                                for char in image_message_obj:
-                                    escaped_char = repr(char)[1:-1]
-                                    yield f'0:"{escaped_char}"\n'
+                                pass
+                                # text_obj = json.dumps({"type": "text", "text": image_message_obj})
+                                # yield f'{text_obj}\n'
                             else:
                                 yield image_message_obj
 
@@ -445,16 +463,15 @@ If `random_texture.jpg` is not provided, you should not use it. Otherwise the vi
                     break  # Exit the loop if there's no function call
 
             # Final message when there are no more function calls
-            final_message = ""
+            final_message = "\n"
             if is_for_platform:
-                for char in final_message:
-                    escaped_char = repr(char)[1:-1]
-                    yield f'0:"{escaped_char}"\n'
+                text_obj = json.dumps({"type": "text", "text": final_message})
+                yield f'{text_obj}\n'
             else:
                 yield final_message
 
         print("Generating response")
-        response = Response(stream_with_context(generate()), content_type="text/plain; charset=utf-8" if is_for_platform else "text/event-stream")
+        response = Response(stream_with_context(generate()), content_type="text/plain; charset=utf-8")
         if is_for_platform:
             response.headers['Transfer-Encoding'] = 'chunked'
             response.headers['x-vercel-ai-data-stream'] = 'v1'
