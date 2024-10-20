@@ -7,6 +7,10 @@ import sys
 import traceback
 from azure.storage.blob import BlobServiceClient
 import shutil
+from typing import Union
+import uuid
+import time
+import requests
 
 video_rendering_bp = Blueprint("video_rendering", __name__)
 
@@ -38,7 +42,7 @@ def upload_to_azure_storage(file_path: str, video_storage_file_name: str) -> str
 
 
 def move_to_public_folder(
-    file_path: str, video_storage_file_name: str, base_url: str | None = None
+    file_path: str, video_storage_file_name: str, base_url: Union[str, None] = None
 ) -> str:
     """
     Moves the video to the public folder and returns the URL.
@@ -70,11 +74,27 @@ def get_frame_config(aspect_ratio):
 
 @video_rendering_bp.route("/v1/video/rendering", methods=["POST"])
 def render_video():
+    # Get the API key from the request headers
+    # api_key = request.headers.get('X-API-Key')
+    
+    # if not api_key:
+    #     return jsonify({"error": "API key is missing"}), 401
+    
+    # Validate the API key and get the user ID
+    # user_id = get_user_by_api_key(api_key)
+    
+    # if not user_id:
+    #     return jsonify({"error": "Invalid API key"}), 401
+    
+    # Now that we have a valid user_id, create a run
+    # run_id = create_run_on_user(user_id, "video")
+    
+    # Extract the rest of the request data
     code = request.json.get("code")
     file_name = request.json.get("file_name")
     file_class = request.json.get("file_class")
 
-    user_id = request.json.get("user_id", "anonymous")
+    user_id = request.json.get("user_id") or str(uuid.uuid4())
     project_name = request.json.get("project_name")
     iteration = request.json.get("iteration")
 
@@ -152,6 +172,11 @@ config.frame_width = {frame_width}
                 if error:
                     print("STDERR:", error.strip())
                     error_output.append(error.strip())
+                    
+                # Check for critical errors
+                if "is not in the script" in error:
+                    in_error = True
+                    continue
 
                 # Check for start of error
                 if "Traceback (most recent call last)" in error:
@@ -184,9 +209,29 @@ config.frame_width = {frame_width}
                         yield f'{{"animationIndex": {current_animation}, "percentage": {current_percentage}}}\n'
 
             if process.returncode == 0:
+                # Update this part
                 video_file_path = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
                     f"{file_class or 'GenScene'}.mp4"
                 )
+                # Looking for video file at: {video_file_path}
+                
+                if not os.path.exists(video_file_path):
+                    #  Video file not found. Searching in parent directory...
+                    video_file_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+                        f"{file_class or 'GenScene'}.mp4"
+                    )
+                    # New video file path is: {video_file_path}
+
+                if os.path.exists(video_file_path):
+                    print(f"Video file found at: {video_file_path}")
+                else:
+                    print(f"Video file not found. Files in current directory: {os.listdir(os.path.dirname(video_file_path))}")
+                    raise FileNotFoundError(f"Video file not found at {video_file_path}")
+
+                print(f"Files in video file directory: {os.listdir(os.path.dirname(video_file_path))}")
+                
                 if USE_LOCAL_STORAGE:
                     # Pass request.host_url if available
                     base_url = (
@@ -217,6 +262,7 @@ config.frame_width = {frame_width}
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
             traceback.print_exc()
+            print(f"Files in current directory after error: {os.listdir('.')}")
             yield f'{{"error": "Unexpected error occurred: {str(e)}"}}\n'
         finally:
             # Remove the temporary Python file
@@ -224,6 +270,10 @@ config.frame_width = {frame_width}
                 if os.path.exists(file_path):
                     os.remove(file_path)
                     print(f"Removed temporary file: {file_path}")
+                # Remove the video file
+                if os.path.exists(video_file_path):
+                    os.remove(video_file_path)
+                    print(f"Removed temporary video file: {video_file_path}")
             except Exception as e:
                 print(f"Error removing temporary file {file_path}: {e}")
 
@@ -285,3 +335,57 @@ config.frame_width = {frame_width}
         except Exception as e:
             print(f"Error in non-streaming mode: {e}")
             return jsonify({"error": str(e)}), 500
+
+
+@video_rendering_bp.route("/v1/video/exporting", methods=["POST"])
+def export_video():
+    scenes = request.json.get("scenes")
+    title_slug = request.json.get("titleSlug")
+    local_filenames = []
+
+    # Download each scene
+    for scene in scenes:
+        video_url = scene["videoUrl"]
+        object_name = video_url.split("/")[-1]
+        local_filename = download_video(video_url)
+        local_filenames.append(local_filename)
+
+    # Create a list of input file arguments for ffmpeg
+    input_files = " ".join([f"-i {filename}" for filename in local_filenames])
+
+    # Generate a unique filename with UNIX timestamp
+    timestamp = int(time.time())
+    merged_filename = os.path.join(
+        os.getcwd(), f"exported-scene-{title_slug}-{timestamp}.mp4"
+    )
+
+    # Command to merge videos using ffmpeg
+    command = f"ffmpeg {input_files} -filter_complex 'concat=n={len(local_filenames)}:v=1:a=0[out]' -map '[out]' {merged_filename}"
+
+    try:
+        # Execute the ffmpeg command
+        subprocess.run(command, shell=True, check=True)
+        print("Videos merged successfully.")
+        print(f"merged_filename: {merged_filename}")
+        public_url = upload_to_azure_storage(
+            merged_filename, f"exported-scene-{title_slug}-{timestamp}"
+        )
+        print(f"Video URL: {public_url}")
+        return jsonify(
+            {"status": "Videos merged successfully", "video_url": public_url}
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"ffmpeg error: {e}")
+        return jsonify({"error": "Failed to merge videos"}), 500
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+def download_video(video_url):
+    local_filename = video_url.split("/")[-1]
+    response = requests.get(video_url)
+    response.raise_for_status()
+    with open(local_filename, 'wb') as f:
+        f.write(response.content)
+    return local_filename
