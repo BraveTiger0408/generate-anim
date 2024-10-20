@@ -29,6 +29,13 @@ And, depending on the model you want to use, you will need to have an API key fo
 - [OpenAI](https://openai.com/api/)
 - [Anthropic](https://www.anthropic.com/api)
 
+If you are on MacOS, make sure you have `pkg-config` and `cairo` installed. You can install them using Homebrew:
+
+```bash
+brew install pkg-config
+brew install cairo
+```
+
 ### Steps
 
 1. **Clone the repository:**
@@ -44,7 +51,20 @@ cd api
 pip install -r requirements.txt
 ```
 
-2. **Build the Docker image:**
+Now you have the option of running the API locally or using Docker.
+
+### Running the API locally
+
+3. Run the `run.py` script to start the API server.
+
+```bash
+cd generative-manim
+python run.py
+```
+
+### Running the API using Docker
+
+3. **Build the Docker image:**
 
 ```bash
 docker build -t generative-manim-api .
