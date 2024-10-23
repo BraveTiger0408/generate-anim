@@ -64,20 +64,22 @@ python run.py
 
 ### Running the API using Docker
 
-3. **Build the Docker image:**
+**Build the Docker image:**
+
+3. Run the following command from the root directory of the repository.
 
 ```bash
+cd generative-manim
 docker build -t generative-manim-api .
-
 ```
 
-3. **Run the Docker container:**
+4. **Run the Docker container:**
 
 ```bash
 docker run -p 8080:8080 generative-manim-api
 ```
 
-4. **Wohoo!** 🎉 Congratulations! You have the API running.
+5. **Wohoo!** 🎉 Congratulations! You have the API running.
 
 Now that you have the API running, you can use it to generate Manim scripts and render videos. Or you can interact with it using the [Animo](https://animo.video) platform. Remember to enable **Use Local Server** in the **Settings** tab of your Animo project. And when required, paste the HTTP URL to the API.
 
